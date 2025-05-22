@@ -100,11 +100,24 @@ class Event(models.Model):
     def rollback_to_version(self, version_number, user):
         """Rollback to a specific version"""
         try:
-            target_version = Event.objects.get(
-                parent_version=self.parent_version or self,
-                version=version_number,
+            # Get the latest version of this event
+            latest_version = (
+                Event.objects.filter(parent_version=self.parent_version or self).order_by("-version").first()
             )
-            new_version = self.create_version(user)
+
+            if not latest_version.is_latest:
+                raise ValueError("Can only rollback from the latest version")
+
+            # For version 1, use the root event
+            if version_number == 1:
+                target_version = self.parent_version or self
+            else:
+                target_version = Event.objects.get(
+                    parent_version=self.parent_version or self,
+                    version=version_number,
+                )
+
+            new_version = latest_version.create_version(user)
 
             # Copy fields from target version
             fields_to_copy = [

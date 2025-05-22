@@ -77,14 +77,18 @@ class EventChangeLog(models.Model):
         """
         try:
             changelog = cls.objects.get(
-                event_id=event_id, from_version=min(version1, version2), to_version=max(version1, version2)
+                event_id=event_id,
+                old_version__version=min(version1, version2),
+                new_version__version=max(version1, version2),
             )
             return changelog.diff
         except cls.DoesNotExist:
             # If direct changelog not found, we need to aggregate changes
             changelogs = cls.objects.filter(
-                event_id=event_id, from_version__gte=min(version1, version2), to_version__lte=max(version1, version2)
-            ).order_by("from_version")
+                event_id=event_id,
+                old_version__version__gte=min(version1, version2),
+                new_version__version__lte=max(version1, version2),
+            ).order_by("old_version__version")
 
             if not changelogs:
                 return {}
