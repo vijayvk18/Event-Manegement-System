@@ -22,11 +22,28 @@ class EventVersionView(APIView):
     def get(self, request, event_id, version_id):
         try:
             event = self.get_event(event_id, request.user)
-            version = get_object_or_404(Event, parent_version=event.parent_version or event, version=version_id)
+
+            # Get the root event (original version)
+            root_event = event.parent_version or event
+
+            # Find the specific version
+            try:
+                version = Event.objects.get(parent_version=root_event, version=version_id)
+            except Event.DoesNotExist:
+                return api_response(
+                    code=status.HTTP_404_NOT_FOUND, message=f"Version {version_id} not found for this event", data=None
+                )
+
             serializer = EventVersionSerializer(version)
             return api_response(code=status.HTTP_200_OK, message="Version retrieved successfully", data=serializer.data)
         except PermissionError as e:
             return api_response(code=status.HTTP_403_FORBIDDEN, message=str(e), data=None)
+        except Exception as e:
+            return api_response(
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message="An error occurred while retrieving the version",
+                data=str(e),
+            )
 
     def post(self, request, event_id, version_id):
         try:
@@ -34,16 +51,41 @@ class EventVersionView(APIView):
             if not request.user.has_event_permission(event, "edit"):
                 raise PermissionError("You don't have permission to rollback this event")
 
-            version = get_object_or_404(Event, parent_version=event.parent_version or event, version=version_id)
-            new_version = event.rollback_to_version(version.version, request.user)
+            # Get the root event (original version)
+            root_event = event.parent_version or event
 
-            return api_response(
-                code=status.HTTP_200_OK,
-                message="Event rolled back successfully",
-                data=EventVersionSerializer(new_version).data,
-            )
+            # Find the target version
+            try:
+                target_version = Event.objects.get(parent_version=root_event, version=version_id)
+            except Event.DoesNotExist:
+                return api_response(
+                    code=status.HTTP_404_NOT_FOUND, message=f"Version {version_id} not found for this event", data=None
+                )
+
+            # Check if trying to rollback to current version
+            if target_version.version == event.version:
+                return api_response(
+                    code=status.HTTP_400_BAD_REQUEST, message="Cannot rollback to current version", data=None
+                )
+
+            # Create new version by rolling back
+            try:
+                new_version = event.rollback_to_version(target_version.version, request.user)
+                return api_response(
+                    code=status.HTTP_200_OK,
+                    message="Event rolled back successfully",
+                    data=EventVersionSerializer(new_version).data,
+                )
+            except ValueError as e:
+                return api_response(code=status.HTTP_400_BAD_REQUEST, message=str(e), data=None)
         except PermissionError as e:
             return api_response(code=status.HTTP_403_FORBIDDEN, message=str(e), data=None)
+        except Exception as e:
+            return api_response(
+                code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message="An error occurred while rolling back the event",
+                data=str(e),
+            )
 
 
 class EventChangeLogView(APIView):

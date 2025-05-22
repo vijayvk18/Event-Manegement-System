@@ -159,6 +159,14 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ),
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": f"{os.getenv('ANON_RATE_LIMIT', '10')}/minute",
+        "user": f"{os.getenv('USER_RATE_LIMIT', '60')}/minute",
+    },
 }
 
 # JWT Settings
