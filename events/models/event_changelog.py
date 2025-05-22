@@ -1,45 +1,38 @@
 import uuid
 
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
-from django.utils import timezone
 
 from core.models.user import User
 from events.models.event import Event
 
 
 class EventChangeLog(models.Model):
-    CHANGE_TYPES = [
-        ("create", "Created"),
-        ("update", "Updated"),
-        ("delete", "Deleted"),
-        ("share", "Shared"),
-        ("rollback", "Rolled Back"),
-    ]
+    CHANGE_TYPES = (
+        ("create", "Create"),
+        ("update", "Update"),
+        ("delete", "Delete"),
+        ("permission_add", "Permission Add"),
+        ("permission_update", "Permission Update"),
+        ("permission_delete", "Permission Delete"),
+        ("field_update", "Field Update"),
+    )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="changelogs")
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="event_changes")
     change_type = models.CharField(max_length=20, choices=CHANGE_TYPES)
-
-    # Store the changes as JSON
-    previous_data = models.JSONField(null=True, blank=True)
-    new_data = models.JSONField(null=True, blank=True)
-
-    # Version information
-    old_version = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, related_name="old_versions")
-    new_version = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, related_name="new_versions")
-
-    created_at = models.DateTimeField(default=timezone.now)
+    previous_data = models.JSONField(null=True, encoder=DjangoJSONEncoder)
+    new_data = models.JSONField(null=True, encoder=DjangoJSONEncoder)
+    old_version = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, related_name="old_version_changes")
+    new_version = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, related_name="new_version_changes")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "event_changelogs"
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["event", "-created_at"]),
-        ]
 
     def __str__(self):
-        return f"{self.event.title} - {self.change_type} by {self.user.email}"
+        return f"{self.event.title} - {self.change_type} by {self.user.email} at {self.created_at}"
 
     @property
     def diff(self):
