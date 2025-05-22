@@ -73,18 +73,18 @@ class EventDetailView(APIView):
     authentication_classes = [JWTAuthentication]
 
     def get_event(self, pk, user):
-        # Get the root event (either the event itself or its parent version)
+        # Get the event
         event = get_object_or_404(Event, pk=pk)
+
+        # Get the root event (either the event itself or its parent version)
         root_event = event.parent_version or event
 
-        # Get the latest version of the event
-        latest_version = (
-            Event.objects.filter(Q(id=root_event.id) | Q(parent_version=root_event)).order_by("-version").first()
-        )
-
-        if not user.has_event_permission(latest_version, "view"):
+        # Check if user has permission on the root event
+        if not user.has_event_permission(root_event, "view"):
             raise PermissionError("You don't have permission to access this event")
-        return latest_version
+
+        # Always return the latest version
+        return Event.objects.filter(Q(id=root_event.id) | Q(parent_version=root_event)).order_by("-version").first()
 
     def get(self, request, pk):
         try:
@@ -96,8 +96,12 @@ class EventDetailView(APIView):
 
     def put(self, request, pk):
         try:
+            # Get the latest version of the event
             event = self.get_event(pk, request.user)
-            if not request.user.has_event_permission(event, "edit"):
+
+            # Get the root event for permission check
+            root_event = event.parent_version or event
+            if not request.user.has_event_permission(root_event, "edit"):
                 raise PermissionError("You don't have permission to edit this event")
 
             # Store previous data for changelog

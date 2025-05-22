@@ -32,7 +32,10 @@ class EventVersionView(APIView):
                 version = root_event
             else:
                 try:
-                    version = Event.objects.get(parent_version=root_event, version=version_id)
+                    # Get the specific version by filtering on both parent_version and version number
+                    version = Event.objects.get(
+                        parent_version=root_event, version=version_id, is_latest=False  # Exclude the latest version
+                    )
                 except Event.DoesNotExist:
                     return api_response(
                         code=status.HTTP_404_NOT_FOUND,
@@ -65,7 +68,10 @@ class EventVersionView(APIView):
                 target_version = root_event
             else:
                 try:
-                    target_version = Event.objects.get(parent_version=root_event, version=version_id)
+                    # Get the specific version by filtering on both parent_version and version number
+                    target_version = Event.objects.get(
+                        parent_version=root_event, version=version_id, is_latest=False  # Exclude the latest version
+                    )
                 except Event.DoesNotExist:
                     return api_response(
                         code=status.HTTP_404_NOT_FOUND,

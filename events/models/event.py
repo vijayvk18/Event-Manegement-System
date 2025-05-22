@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from core.models.user import User
@@ -79,21 +80,45 @@ class Event(models.Model):
 
     def create_version(self, user):
         """Create a new version of the event"""
-        if not self.is_latest:
-            raise ValueError("Can only create new version from latest version")
+        # Get the root event
+        root_event = self.parent_version or self
+
+        # Get the latest version
+        latest_version = (
+            Event.objects.filter(Q(id=root_event.id) | Q(parent_version=root_event)).order_by("-version").first()
+        )
 
         # Set current version as not latest
-        self.is_latest = False
-        self.save()
+        latest_version.is_latest = False
+        latest_version.save()
 
-        # Create new version
-        new_version = Event.objects.get(pk=self.pk)
-        new_version.pk = None  # This will create a new instance
-        new_version.version = self.version + 1
-        new_version.is_latest = True
-        new_version.parent_version = self
-        new_version.updated_by = user
+        # Create new version by copying current event
+        new_version = Event(
+            title=latest_version.title,
+            description=latest_version.description,
+            start_date=latest_version.start_date,
+            end_date=latest_version.end_date,
+            location=latest_version.location,
+            owner=latest_version.owner,
+            created_by=latest_version.created_by,
+            version=latest_version.version + 1,
+            is_latest=True,
+            parent_version=root_event,
+            updated_by=user,
+            is_recurring=latest_version.is_recurring,
+            recurrence_pattern=latest_version.recurrence_pattern,
+            recurrence_end_date=latest_version.recurrence_end_date,
+            custom_recurrence=latest_version.custom_recurrence,
+        )
         new_version.save()
+
+        # Copy permissions from root event to new version
+        from events.models.event_permission import EventPermission
+
+        for permission in root_event.permissions.all():
+            EventPermission.objects.create(
+                event=new_version, user=permission.user, role=permission.role, granted_by=permission.granted_by
+            )
 
         return new_version
 
