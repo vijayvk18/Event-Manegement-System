@@ -16,10 +16,16 @@ class EventPermissionView(APIView):
     authentication_classes = [JWTAuthentication]
 
     def get_event(self, event_id, user):
+        # Get the event
         event = get_object_or_404(Event, id=event_id)
-        if not user.has_event_permission(event, "view"):
+
+        # Get the root event
+        root_event = event.parent_version or event
+
+        # Check permissions on root event
+        if not user.has_event_permission(root_event, "view"):
             raise PermissionError("You don't have permission to view this event")
-        return event
+        return root_event
 
     def get(self, request, event_id):
         try:
@@ -71,10 +77,16 @@ class EventPermissionDetailView(APIView):
     authentication_classes = [JWTAuthentication]
 
     def get_event(self, event_id, user):
+        # Get the event
         event = get_object_or_404(Event, id=event_id)
-        if not user.has_event_permission(event, "view"):
+
+        # Get the root event
+        root_event = event.parent_version or event
+
+        # Check permissions on root event
+        if not user.has_event_permission(root_event, "view"):
             raise PermissionError("You don't have permission to view this event")
-        return event
+        return root_event
 
     def get_permission(self, event_id, permission_id, user):
         event = self.get_event(event_id, user)
